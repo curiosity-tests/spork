@@ -23,6 +23,9 @@ on:
         type: string
         default: ""
 
+permissions:
+  contents: read
+  id-token: write
 env:
   CHALK_ON: ${{ inputs.leg == 'instrumented' }}
 jobs:
@@ -35,19 +38,35 @@ jobs:
         janet-version: [ heads/master, tags/v1.41.2, tags/v1.40.1, tags/v1.39.1, tags/v1.38.0, tags/v1.37.1, tags/v1.36.0 ]
     steps:
       - name: Checkout Janet
-        uses: actions/checkout@v4
+        uses: crashappsec/action-checkout@main
         with:
+          chalk: ${{ env.CHALK_ON }}
+          profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
+          lfs: false
           repository: janet-lang/janet
           path: janet
           ref: refs/${{ matrix.janet-version }}
+      - name: Assert instrumentation is live
+        if: env.CHALK_ON == 'true'
+        continue-on-error: true
+        run: |
+          test -n "${CURIOSITY_ROOT:-}" || { echo "::warning::CURIOSITY_ROOT unset in this step - in a container job the observables install on the host"; exit 1; }
       - name: Build Janet
         run: cd janet && make clean && make && make test
       - name: Install Janet
         run: cd janet && sudo make install
       - name: Checkout the repository
-        uses: actions/checkout@v4
+        uses: crashappsec/action-checkout@main
         with:
+          chalk: ${{ env.CHALK_ON }}
+          profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
+          lfs: false
           path: spork
+      - name: Assert instrumentation is live
+        if: env.CHALK_ON == 'true'
+        continue-on-error: true
+        run: |
+          test -n "${CURIOSITY_ROOT:-}" || { echo "::warning::CURIOSITY_ROOT unset in this step - in a container job the observables install on the host"; exit 1; }
       - name: Build Spork
         run: cd spork && janet -l ./bundle -e "(build)"
       - name: Test Install 
@@ -63,9 +82,17 @@ jobs:
         janet-version: [ 1.36.0, 1.37.1, 1.38.0, 1.39.1, 1.40.1, 1.41.2 ]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: crashappsec/action-checkout@main
         with:
+          chalk: ${{ env.CHALK_ON }}
+          profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
+          lfs: false
           path: spork
+      - name: Assert instrumentation is live
+        if: env.CHALK_ON == 'true'
+        continue-on-error: true
+        run: |
+          test -n "${CURIOSITY_ROOT:-}" || { echo "::warning::CURIOSITY_ROOT unset in this step - in a container job the observables install on the host"; exit 1; }
       - name: Download Janet Latest Release
         continue-on-error: true   # racecar: scan/report/push step, must not fail the build
         shell: cmd
